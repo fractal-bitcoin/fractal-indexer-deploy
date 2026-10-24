@@ -226,7 +226,30 @@ kopia_snapshot_json_by_tags() {
     tag_args+=(--tags="$tag")
   done
 
-  kopia snapshot list --all --json "${tag_args[@]}" || true
+  kopia snapshot list --all --json "${tag_args[@]}"
+}
+
+kopia_complete_snapshot_json_by_tags() {
+  local snapshots_json
+
+  snapshots_json="$(kopia_snapshot_json_by_tags "$@")" || return "$?"
+  printf '%s\n' "$snapshots_json" \
+    | jq -cs '
+      # Kopia may return incomplete checkpoint records with a usable root
+      # object. Only complete records are safe to restore or mount.
+      if length != 1 then error("expected one snapshot JSON document") else .[0] end
+      | if type == "array" then .
+        elif type == "object" then [.]
+        else error("expected snapshot array or object") end
+      | map(select(
+          ((.rootEntry.obj // "") != "")
+          and ((.incomplete // "") == "")
+          and ((.rootEntry.incomplete // "") == "")
+          and ((.rootEntry.summ.incomplete // "") == "")
+          and ((.rootEntry.summ.numFailed // 0) == 0)
+          and ((.rootEntry.summ.errors // []) | length == 0)
+        ))
+    '
 }
 
 kopia_snapshot_object_id() {
@@ -234,21 +257,19 @@ kopia_snapshot_object_id() {
   local tags_display
 
   tags_display="$(IFS=,; printf '%s' "$*")"
-  object_id="$(kopia_snapshot_json_by_tags "$@" \
-    | jq -er '
-      # Normalize the result before filtering.
-      if type == "array" then . else [.] end
-      # A restorable snapshot must have a root object. When multiple snapshots
-      # match the same tag set, choose the newest snapshot record and restore
-      # its root object.
-      | map(select(.rootEntry.obj != null))
-      | sort_by(.startTime // .endTime // "")
+  if ! object_id="$(kopia_complete_snapshot_json_by_tags "$@" \
+    | jq -r '
+      # When multiple complete snapshots match the same tag set, restore the
+      # newest complete record.
+      sort_by(.startTime // .endTime // "")
       | last
       | .rootEntry.obj // empty
-    ' || true)"
+    ')"; then
+    die "failed to query or parse snapshots for tags: ${tags_display}"
+  fi
 
   if [ -z "$object_id" ]; then
-    die "snapshot not found for tags: ${tags_display}"
+    die "complete snapshot not found for tags: ${tags_display}"
   fi
 
   printf '%s\n' "$object_id"
@@ -259,14 +280,15 @@ kopia_snapshot_source_path() {
   local tags_display
 
   tags_display="$(IFS=,; printf '%s' "$*")"
-  source_path="$(kopia_snapshot_json_by_tags "$@" \
-    | jq -er '
-      if type == "array" then . else [.] end
-      | map(select(.rootEntry.obj != null and .source.path != null))
+  if ! source_path="$(kopia_complete_snapshot_json_by_tags "$@" \
+    | jq -r '
+      map(select(.source.path != null))
       | sort_by(.startTime // .endTime // "")
       | last
       | .source.path // empty
-    ' || true)"
+    ')"; then
+    die "failed to query or parse snapshots for tags: ${tags_display}"
+  fi
 
   if [ -z "$source_path" ]; then
     die "snapshot source path not found for tags: ${tags_display}"
@@ -275,17 +297,12 @@ kopia_snapshot_source_path() {
   printf '%s\n' "$source_path"
 }
 
-kopia_latest_complete_snapshot_height() {
+kopia_latest_complete_snapshot_selection() {
   local required_datasets_csv="fractald-blocks,fractald-chainstate,fractal-indexer-data"
-  local height
+  local selection
 
-  height="$(kopia_snapshot_json_by_tags "network:fractal" "role:snapshot" "dbschema:${SNAPSHOT_SCHEMA_VERSION}" \
-    | jq -er --arg required "$required_datasets_csv" --arg schema "$SNAPSHOT_SCHEMA_VERSION" '
-      # Kopia JSON is normally an array. Keep arrays as-is and wrap a single
-      # object only if Kopia ever returns one.
-      def entries:
-        if type == "array" then . else [.] end;
-
+  if ! selection="$(kopia_complete_snapshot_json_by_tags "network:fractal" "role:snapshot" "dbschema:${SNAPSHOT_SCHEMA_VERSION}" \
+    | jq -r --arg required "$required_datasets_csv" --arg schema "$SNAPSHOT_SCHEMA_VERSION" '
       # Tags have appeared in both object form, such as
       # {"tag:height":"1827202"}, and array/string form, such as
       # ["height:1827202"]. Support both forms to keep old snapshots readable.
@@ -310,38 +327,57 @@ kopia_latest_complete_snapshot_height() {
         end;
 
       ($required | split(",")) as $required_datasets
-      | entries
-      # Keep only the fields needed to decide whether a height is usable.
       | map({
           height: (tag_value("height") | tostring),
           dataset: (tag_value("dataset") | tostring),
           schema: (tag_value("dbschema") | tostring),
           object: (.rootEntry.obj // empty),
-          incomplete: (.incomplete // .rootEntry.incomplete // .rootEntry.summ.incomplete // "")
+          startTime: (.startTime // .endTime // "")
         })
-      # A candidate dataset must have a numeric height, a dataset tag, a root
-      # object, the current DB schema tag, and must not be marked incomplete.
-      | map(select(.object != "" and .incomplete == "" and (.height | test("^[0-9]+$")) and (.dataset != "") and .schema == $schema))
-      # Group all datasets by height, then keep heights that include every
-      # required dataset. Duplicate records for a dataset do not matter here;
-      # uniqueness is checked by dataset name only.
+      | map(select((.height | test("^[0-9]+$")) and (.dataset != "") and .schema == $schema))
       | group_by(.height)
-      | map({
-          height: .[0].height,
-          datasets: (map(.dataset) | unique)
-        })
-      | map(select(($required_datasets - .datasets) | length == 0))
-      # Pick the highest complete height.
+      | map(
+          . as $records
+          | {
+              height: .[0].height,
+              roots: (reduce $required_datasets[] as $dataset
+                ({};
+                  .[$dataset] = (
+                    [$records[] | select(.dataset == $dataset)]
+                    | sort_by(.startTime)
+                    | last
+                    | (.object // "")
+                  )
+                ))
+            }
+        )
+      | map(select(. as $candidate | all($required_datasets[]; $candidate.roots[.] != "")))
       | sort_by(.height | tonumber)
       | last
-      | .height // empty
-    ' || true)"
+      | select(. != null)
+      | [
+          .height,
+          .roots["fractald-blocks"],
+          .roots["fractald-chainstate"],
+          .roots["fractal-indexer-data"]
+        ]
+      | @tsv
+    ')"; then
+    die "failed to query or parse snapshots for dbschema:${SNAPSHOT_SCHEMA_VERSION}"
+  fi
 
-  if [ -z "$height" ] || [ "$height" = "null" ]; then
+  if [ -z "$selection" ]; then
     die "no complete snapshot height found for dbschema:${SNAPSHOT_SCHEMA_VERSION} and required datasets: ${required_datasets_csv}"
   fi
 
-  printf '%s\n' "$height"
+  printf '%s\n' "$selection"
+}
+
+kopia_latest_complete_snapshot_height() {
+  local selection
+
+  selection="$(kopia_latest_complete_snapshot_selection)" || return "$?"
+  printf '%s\n' "${selection%%$'\t'*}"
 }
 
 kopia_restore_snapshot_dataset() {
@@ -349,7 +385,8 @@ kopia_restore_snapshot_dataset() {
   local dataset="$2"
   local target="$3"
   local delete_extra="${4:-0}"
-  local object_id tags_display
+  local object_id="${5:-}"
+  local tags_display
   local restore_args=(--skip-existing --write-files-atomically)
   local tags=(
     "network:fractal"
@@ -360,8 +397,12 @@ kopia_restore_snapshot_dataset() {
   )
 
   tags_display="$(IFS=,; printf '%s' "${tags[*]}")"
-  log "Resolving ${dataset} (${tags_display})"
-  object_id="$(kopia_snapshot_object_id "${tags[@]}")"
+  if [ -z "$object_id" ]; then
+    log "Resolving ${dataset} (${tags_display})"
+    object_id="$(kopia_snapshot_object_id "${tags[@]}")" || return "$?"
+  else
+    log "Using preselected complete snapshot root for ${dataset} (${object_id})"
+  fi
 
   mkdir -p "$(dirname "$target")"
   if [ "$delete_extra" -eq 1 ]; then
