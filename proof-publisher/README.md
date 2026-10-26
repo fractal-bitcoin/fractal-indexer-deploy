@@ -35,25 +35,30 @@ attached to the shared external Docker network `fractal-indexer-fip101-net`.
 
 ## Quick Configuration
 
-Run the top-level deployment first so `fractald` and `fractal-indexer` are
-configured and started:
+From the repository root, run the top-level deployment first so `fractald` and
+`fractal-indexer` are configured and started:
 
 ```bash
-cd ..
 scripts/deploy.sh --snapshot=latest
 ```
 
-Then review the proof publisher config:
+Then create and review the proof publisher config:
 
 ```bash
 cd proof-publisher
-cp config.example.json config.json  # only if config.json does not already exist
+test -f config.json || cp config.example.json config.json
 ```
 
-`scripts/deploy.sh` can generate `proof-publisher/config.json` with the Fractald
-RPC credentials and Fractal indexer API address. You still need to review and
-set the signing wallet, reward address, indexer name, scan start height, and the
-runtime-mode-specific fields.
+`scripts/deploy.sh` does not generate `proof-publisher/config.json`. Copy the RPC
+credentials from `../fractald/conf/bitcoin.conf`; the normal state API address is
+already present in the template as `http://fractal-indexer:8000`.
+
+The example is a template and is not valid JSON until both instructional values
+below are replaced:
+
+- Replace `"start_height": REPLACE_START_HEIGHT` with a numeric chain height.
+- Replace `"mode": "default" OR "unisat_open_api"` with exactly one JSON
+  string, either `"mode": "default"` or `"mode": "unisat_open_api"`.
 
 Common required values for both modes:
 
@@ -92,9 +97,13 @@ publishing proofs.
 Start the service:
 
 ```bash
+jq empty config.json
 bash ./scripts/init.sh
 docker compose up -d
 ```
+
+Do not start the service unless `jq empty config.json` succeeds and all required
+placeholder values have been replaced.
 
 ## Required Config Values
 
@@ -109,7 +118,8 @@ rpcpassword=...
 ```
 
 When you use the top-level `scripts/deploy.sh`, it generates or reuses these
-credentials and can write them into `proof-publisher/config.json`.
+credentials in `fractald/conf/bitcoin.conf`. Copy them into
+`proof-publisher/config.json` manually.
 
 `bitcoin_rpc.url` should normally stay as:
 

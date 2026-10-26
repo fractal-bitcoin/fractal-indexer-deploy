@@ -74,9 +74,9 @@ cd fractal-indexer-deploy
 scripts/deploy.sh --snapshot=latest
 ```
 
-The deploy script creates or updates local configs, including Fractald RPC
-credentials and the Fractal indexer API address used by `proof-publisher`.
-After the indexer stack is running, configure the proof publisher manually.
+The deploy script creates the Fractald RPC credentials and the Fractal indexer
+chain config. It does not generate `proof-publisher/config.json`; configure that
+file manually after the indexer stack is running.
 
 To redeploy from a clean state, stop services and remove runtime data first:
 
@@ -97,12 +97,19 @@ proof messages. It needs a funded signing wallet, a reward address, and either a
 UniSat Open API key for `unisat_open_api` mode or default-mode UTXO sourcing via
 manual `signing.initial_utxos` or `runtime.local_utxo_open_api_refill`.
 
-Open the generated config:
+Create the local config from the example template:
 
 ```bash
 cd proof-publisher
-cp config.example.json config.json  # only if config.json was not generated
+test -f config.json || cp config.example.json config.json
 ```
+
+The example is a template and is not valid JSON until both instructional values
+below are replaced:
+
+- Replace `"start_height": REPLACE_START_HEIGHT` with a numeric chain height.
+- Replace `"mode": "default" OR "unisat_open_api"` with exactly one JSON
+  string, either `"mode": "default"` or `"mode": "unisat_open_api"`.
 
 Review and set these common fields in `config.json`:
 
@@ -151,9 +158,13 @@ documentation is at
 Then start the publisher:
 
 ```bash
+jq empty config.json
 bash ./scripts/init.sh
 docker compose up -d
 ```
+
+Do not start the service unless `jq empty config.json` succeeds and all required
+placeholder values have been replaced.
 
 For detailed configuration notes, including private key handling, address
 meaning, and non-UniSat `default` mode, see
