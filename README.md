@@ -187,6 +187,18 @@ Public endpoints bind to `127.0.0.1` by default:
 Set `BIND_HOST=0.0.0.0` only when these APIs must be reachable from outside the
 host and the network perimeter is already protected.
 
+## Available Snapshot Heights
+
+The latest snapshot height is `2229982`. Available snapshot heights:
+
+- `1827409`
+- `1881585`
+- `2229982` (latest)
+
+Deploy a specific snapshot with `scripts/deploy.sh --snapshot=2229982`, or use
+`scripts/deploy.sh --snapshot=latest` to select the highest height with all three
+required datasets passing the snapshot completeness checks.
+
 ## List Uploaded Snapshot Heights
 
 ```bash
@@ -207,7 +219,7 @@ numeric height, dataset name, and target directory:
 
 ```bash
 scripts/restore-kopia-snapshot.sh \
-  --height=1827409 \
+  --height=2229982 \
   --dataset=fractald-blocks \
   --target=fractald/data/blocks
 ```
@@ -276,6 +288,14 @@ Check:
 - `http://localhost:8080/status` for proof publisher status
 
 ## Changelog
+
+### 20261026
+
+1. Updated the latest snapshot height to `2229982` and documented available heights `1827409`, `1881585`, and `2229982`.
+2. Unified snapshot completeness checks for restore and mount, rejecting empty roots, incomplete/checkpoint records, and snapshots with failed file reads.
+3. Updated `--snapshot=latest` to select and retain all three verified dataset roots in one query.
+4. Made snapshot query and JSON parsing failures explicit instead of reporting them as missing snapshots.
+5. Added `scripts/list-kopia-snapshot-heights.sh` to list uploaded heights, with `--all-schemas` support, and fixed Kopia connection argument handling on Bash 3.2.
 
 ### 20260702
 
