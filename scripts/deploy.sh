@@ -41,6 +41,9 @@ EOF
 }
 
 snapshot_height=""
+snapshot_blocks_object_id=""
+snapshot_chainstate_object_id=""
+snapshot_indexer_object_id=""
 force=0
 skip_init_db=0
 assume_yes=0
@@ -151,10 +154,16 @@ if [ "$use_snapshot" -eq 1 ]; then
   require_env KOPIA_REPOSITORY_PASSWORD
 
   if [ "$snapshot_height" = "latest" ]; then
+    latest_snapshot_selection=""
     log "Connecting Kopia repository as read-only"
     kopia_connect_s3 readonly
-    log "Resolving latest complete snapshot height"
-    snapshot_height="$(kopia_latest_complete_snapshot_height)"
+    log "Resolving latest complete snapshot roots"
+    latest_snapshot_selection="$(kopia_latest_complete_snapshot_selection)"
+    IFS=$'\t' read -r \
+      snapshot_height \
+      snapshot_blocks_object_id \
+      snapshot_chainstate_object_id \
+      snapshot_indexer_object_id <<<"$latest_snapshot_selection"
     log "Latest complete snapshot height: ${snapshot_height}"
   fi
 fi
@@ -202,13 +211,26 @@ restore_dataset() {
   local dataset="$1"
   local target="$2"
   local object_id
+  local preselected_object_id=""
   local delete_extra=0
 
   if [ "$force" -eq 1 ]; then
     delete_extra=1
   fi
 
-  kopia_restore_snapshot_dataset "$snapshot_height" "$dataset" "$target" "$delete_extra"
+  case "$dataset" in
+    fractald-blocks)
+      preselected_object_id="$snapshot_blocks_object_id"
+      ;;
+    fractald-chainstate)
+      preselected_object_id="$snapshot_chainstate_object_id"
+      ;;
+    fractal-indexer-data)
+      preselected_object_id="$snapshot_indexer_object_id"
+      ;;
+  esac
+
+  kopia_restore_snapshot_dataset "$snapshot_height" "$dataset" "$target" "$delete_extra" "$preselected_object_id"
   object_id="$KOPIA_RESTORED_OBJECT_ID"
   printf '%s\t%s\t%s\n' "$dataset" "$object_id" "$target" >>"$restore_summary_file"
 }
