@@ -187,6 +187,19 @@ Public endpoints bind to `127.0.0.1` by default:
 Set `BIND_HOST=0.0.0.0` only when these APIs must be reachable from outside the
 host and the network perimeter is already protected.
 
+## List Uploaded Snapshot Heights
+
+```bash
+scripts/list-kopia-snapshot-heights.sh
+scripts/list-kopia-snapshot-heights.sh --all-schemas
+```
+
+Prints unique heights in ascending numeric order, one per line. By default,
+records must match the current `SNAPSHOT_SCHEMA_VERSION`; `--all-schemas`
+includes all schemas and records without a schema tag. This inventory includes
+incomplete/checkpoint records and heights with missing datasets, so a listed
+height is not necessarily ready to restore. Connection diagnostics go to stderr.
+
 ## Restore One Snapshot Dataset
 
 Use `scripts/restore-kopia-snapshot.sh` to restore one Kopia snapshot dataset by

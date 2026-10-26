@@ -214,8 +214,8 @@ kopia_connect_s3() {
     --prefix="$KOPIA_REPOSITORY_PREFIX" \
     --password="$KOPIA_REPOSITORY_PASSWORD" \
     --cache-directory="$KOPIA_CACHE_DIRECTORY" \
-    "${override_args[@]}" \
-    "${readonly_args[@]}"
+    ${override_args[@]+"${override_args[@]}"} \
+    ${readonly_args[@]+"${readonly_args[@]}"}
 }
 
 kopia_snapshot_json_by_tags() {
