@@ -76,6 +76,13 @@ scripts/deploy.sh --snapshot=latest
 
 The deploy script creates or updates local configs, including Fractald RPC
 credentials and the Fractal indexer API address used by `proof-publisher`.
+The top-level `scripts/deploy.sh` workflow deploys the repository templates:
+it overwrites `fractald/conf/bitcoin.conf` on each run, preserving only the
+existing `rpcuser` and `rpcpassword`. Other custom settings, including security
+hardening, are not preserved. Back up any custom configuration before running
+the script. Use the manual deployment workflow in `fractald/README.md` to
+maintain a customized node configuration. With `--download-only`, configuration
+generation is skipped.
 After the indexer stack is running, configure the proof publisher manually.
 
 To redeploy from a clean state, stop services and remove runtime data first:

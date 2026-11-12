@@ -428,6 +428,7 @@ fractald_config="${REPO_ROOT}/fractald/conf/bitcoin.conf"
 if [ -f "$fractald_config" ]; then
   log "Loading fractald RPC credentials from existing config"
   load_fractald_rpc_credentials
+  warn "${fractald_config} will be overwritten from the repository template; only rpcuser and rpcpassword are preserved. Other custom settings, including security hardening, will be discarded."
 else
   rpc_user="fip101"
   rpc_password="$(generate_password)"
