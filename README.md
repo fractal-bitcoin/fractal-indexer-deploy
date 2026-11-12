@@ -97,6 +97,61 @@ To download snapshot data only and skip service initialization/startup:
 scripts/deploy.sh --snapshot=latest --download-only
 ```
 
+#### Deployment Order and Recovery
+
+After the environment, port, and data-directory checks, deployment proceeds as
+follows:
+
+- With a snapshot: restore the node blocks, chainstate, and indexer data;
+  initialize indexer directories and start storage services; generate the node
+  config, start Fractald, and check RPC availability and `pruneheight`; then
+  generate the indexer chain config, start the indexer and API, and wait for the
+  API to return a best height. `--download-only` exits after data restoration.
+- Without a snapshot: generate the node config, start Fractald, and wait for
+  RPC availability. Unless `--skip-init-db` is set, wait for the node to reach
+  the configured initialization height before initializing the indexer DB.
+  Then start storage services, the indexer, and the API, and wait for the API
+  to return a best height.
+
+`--skip-init-db` skips indexer DB initialization and its prerequisite node-height
+wait. It does not validate existing data for completeness, compatibility, or
+consistency; the operator must ensure that the data is suitable for reuse.
+Other environment, port, and data-directory checks still apply, subject to
+their respective options.
+
+In snapshot mode, `pruneheight <= snapshot_height` is a prerequisite check,
+not proof that the node and indexer snapshots are consistent, that the data is
+complete, or that every required block can be read. An available API best-height
+response also does not mean the indexer has caught up with the chain tip.
+
+Deployment failures do not trigger an automatic rollback. Restored data,
+generated configs, and services already started may remain. The script removes
+its temporary restore summary and RPC output files on exit and does not save a
+persistent restore manifest. Retain command output and inspect service status,
+logs, and restored directories before deciding whether to retry or clean up.
+`scripts/cleanup.sh --data` stops services and deletes runtime data; use it only
+when intentionally starting over.
+
+#### Snapshot Upload Checks
+
+Before running `scripts/upload-kopia-snapshots.sh <height>`, stop all processes
+that write the source node and indexer data. The script requires a reachable
+Docker daemon and rejects running source services or containers whose mounts
+overlap the source directories. It does not stop services automatically.
+
+The upload script checks containers before connecting to Kopia, before and
+after each dataset upload, and before printing the final summary. A running
+source container or a Docker inspection error aborts the run. The script does
+not scan or hash source files.
+
+These checks do not establish cross-database consistency or verify the supplied
+height. The operator must still establish a consistent node/indexer cut and
+keep all writers stopped. Uploads are sequential, not atomic: records already
+uploaded remain if a later check fails, and may be discoverable by restore
+commands. Do not use that height until those records have been reviewed and
+removed or replaced as appropriate. Partial uploads enabled with
+`ALLOW_PARTIAL_UPLOAD=1` do not establish a complete dataset set.
+
 ### 2. Deploy Proof Publisher
 
 `proof-publisher` is the component that submits your on-chain registration and
