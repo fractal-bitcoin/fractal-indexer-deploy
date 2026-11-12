@@ -74,11 +74,27 @@ unmount_path() {
   fi
 }
 
+# Track only mounts successfully created by this invocation.
+mounted_paths=()
+cleanup_started=false
+
 cleanup() {
+  local i
+
+  if [ "$cleanup_started" = true ]; then
+    return
+  fi
+
+  cleanup_started=true
+  # Signal handlers and EXIT can both reach cleanup; run it only once.
+  trap '' INT TERM
   set +e
-  unmount_path "${target_root}/fractal-indexer/data"
-  unmount_path "${target_root}/fractald/chainstate"
-  unmount_path "${target_root}/fractald/blocks"
+
+  for ((i = ${#mounted_paths[@]} - 1; i >= 0; i--)); do
+    unmount_path "${mounted_paths[$i]}"
+  done
+
+  mounted_paths=()
 }
 
 wait_for_mount() {
@@ -130,6 +146,8 @@ mount_dataset() {
   if ! wait_for_mount "$target" "$mount_pid"; then
     die "failed to mount ${dataset} to ${target}"
   fi
+
+  mounted_paths+=("$target")
 }
 
 load_default_readonly_r2_credentials
