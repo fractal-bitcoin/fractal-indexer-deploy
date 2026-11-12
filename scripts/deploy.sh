@@ -18,8 +18,8 @@ Usage:
   scripts/deploy.sh [--snapshot=<height|latest>] [--download-only] [--force] [--skip-init-db] [--skip-checks=memory,disk] [--yes]
 
 Snapshot restore environment:
-  AWS_ACCESS_KEY_ID       Read-only Cloudflare R2 access key; defaults to bundled read-only key
-  AWS_SECRET_ACCESS_KEY   Read-only Cloudflare R2 secret key; defaults to bundled read-only key
+  KOPIA_R2_ACCESS_KEY_ID       Read-only Cloudflare R2 access key; defaults to bundled read-only key
+  KOPIA_R2_SECRET_ACCESS_KEY   Read-only Cloudflare R2 secret key; defaults to bundled read-only key
 
 Without --snapshot, the script initializes configs and starts services without
 restoring Kopia snapshot data.
@@ -149,8 +149,8 @@ check_port_publication_security
 
 if [ "$use_snapshot" -eq 1 ]; then
   require_command kopia
-  require_env AWS_ACCESS_KEY_ID
-  require_env AWS_SECRET_ACCESS_KEY
+  require_env KOPIA_R2_ACCESS_KEY_ID
+  require_env KOPIA_R2_SECRET_ACCESS_KEY
   require_env KOPIA_REPOSITORY_PASSWORD
 
   if [ "$snapshot_height" = "latest" ]; then

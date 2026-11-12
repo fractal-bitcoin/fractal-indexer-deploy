@@ -16,13 +16,19 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FRACTAL_NETWORK_NAME="fractal-indexer-fip101-net"
 
 load_default_readonly_r2_credentials() {
-  : "${AWS_ACCESS_KEY_ID:=d10a4a18c0d604d803049c94a01dace5}"
-  if [ -z "${AWS_SECRET_ACCESS_KEY:-}" ]; then
-    require_command base64
-    AWS_SECRET_ACCESS_KEY="$(printf '%s' 'OTAyZTFiYmQ0NmUyOWQ3NTQxZTBhMzY5MmI0YTU2OGY3MmJmN2RiZmIyNzNiMmE0ZDkwMmI0ZmUzYjA5MGRmYg==' | base64 -d)"
+  # Overrides must be a complete pair; never combine a custom key with a
+  # bundled secret (or vice versa).
+  if [ -n "${KOPIA_R2_ACCESS_KEY_ID:-}${KOPIA_R2_SECRET_ACCESS_KEY:-}" ]; then
+    require_env KOPIA_R2_ACCESS_KEY_ID
+    require_env KOPIA_R2_SECRET_ACCESS_KEY
+    return
   fi
-  export AWS_ACCESS_KEY_ID
-  export AWS_SECRET_ACCESS_KEY
+
+  : "${KOPIA_R2_ACCESS_KEY_ID:=d10a4a18c0d604d803049c94a01dace5}"
+  if [ -z "${KOPIA_R2_SECRET_ACCESS_KEY:-}" ]; then
+    require_command base64
+    KOPIA_R2_SECRET_ACCESS_KEY="$(printf '%s' 'OTAyZTFiYmQ0NmUyOWQ3NTQxZTBhMzY5MmI0YTU2OGY3MmJmN2RiZmIyNzNiMmE0ZDkwMmI0ZmUzYjA5MGRmYg==' | base64 -d)"
+  fi
 }
 
 log_timestamp() {
@@ -196,8 +202,8 @@ kopia_connect_s3() {
   local readonly_args=()
   local override_args=()
 
-  require_env AWS_ACCESS_KEY_ID
-  require_env AWS_SECRET_ACCESS_KEY
+  require_env KOPIA_R2_ACCESS_KEY_ID
+  require_env KOPIA_R2_SECRET_ACCESS_KEY
   require_env KOPIA_REPOSITORY_PASSWORD
 
   mkdir -p "$KOPIA_CACHE_DIRECTORY"
@@ -208,7 +214,12 @@ kopia_connect_s3() {
     override_args=(--override-username="$KOPIA_USERNAME" --override-hostname="$KOPIA_HOSTNAME")
   fi
 
-  KOPIA_CHECK_FOR_UPDATES=false kopia repository connect s3 \
+  # Map only the dedicated R2 credentials into Kopia's environment. Inherited
+  # AWS credentials and session tokens must not affect this connection.
+  AWS_ACCESS_KEY_ID="$KOPIA_R2_ACCESS_KEY_ID" \
+    AWS_SECRET_ACCESS_KEY="$KOPIA_R2_SECRET_ACCESS_KEY" \
+    AWS_SESSION_TOKEN= \
+    KOPIA_CHECK_FOR_UPDATES=false kopia repository connect s3 \
     --bucket="$KOPIA_R2_BUCKET" \
     --endpoint="$KOPIA_R2_ENDPOINT" \
     --prefix="$KOPIA_REPOSITORY_PREFIX" \

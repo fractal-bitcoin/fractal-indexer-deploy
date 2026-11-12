@@ -25,8 +25,8 @@ Available datasets:
   fractal-indexer-data    Suggested target: fractal-indexer/data
 
 Snapshot restore environment:
-  AWS_ACCESS_KEY_ID       Read-only Cloudflare R2 access key; defaults to bundled read-only key.
-  AWS_SECRET_ACCESS_KEY   Read-only Cloudflare R2 secret key; defaults to bundled read-only key.
+  KOPIA_R2_ACCESS_KEY_ID       Read-only Cloudflare R2 access key; defaults to bundled read-only key.
+  KOPIA_R2_SECRET_ACCESS_KEY   Read-only Cloudflare R2 secret key; defaults to bundled read-only key.
 EOF
 }
 

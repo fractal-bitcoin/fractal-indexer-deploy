@@ -12,8 +12,8 @@ Usage:
   scripts/upload-kopia-snapshots.sh [--role=<role>] <snapshot-height>
 
 Required environment:
-  AWS_ACCESS_KEY_ID       Write-capable Cloudflare R2 access key
-  AWS_SECRET_ACCESS_KEY   Write-capable Cloudflare R2 secret key
+  KOPIA_R2_ACCESS_KEY_ID       Write-capable Cloudflare R2 access key
+  KOPIA_R2_SECRET_ACCESS_KEY   Write-capable Cloudflare R2 secret key
 
 Optional environment:
   KOPIA_R2_BUCKET              Default: kopia-repo
@@ -82,8 +82,8 @@ fi
 require_command kopia
 require_command jq
 require_command docker
-require_env AWS_ACCESS_KEY_ID
-require_env AWS_SECRET_ACCESS_KEY
+require_env KOPIA_R2_ACCESS_KEY_ID
+require_env KOPIA_R2_SECRET_ACCESS_KEY
 require_env KOPIA_REPOSITORY_PASSWORD
 
 datasets=$(

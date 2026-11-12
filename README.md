@@ -134,6 +134,16 @@ when intentionally starting over.
 
 #### Snapshot Upload Checks
 
+Snapshot scripts use `KOPIA_R2_ACCESS_KEY_ID` and
+`KOPIA_R2_SECRET_ACCESS_KEY` for Cloudflare R2 credentials. Set both variables
+to override the bundled read-only credentials used by deployment, restore,
+mount, and snapshot-list commands. Upload requires an explicitly supplied pair
+with write access. Existing automation that supplies `AWS_ACCESS_KEY_ID` and
+`AWS_SECRET_ACCESS_KEY` must migrate to the dedicated variable names; those
+generic variables are no longer used as script inputs. Inherited
+`AWS_SESSION_TOKEN` is cleared for the Kopia connection only. The parent
+environment is unchanged.
+
 Before running `scripts/upload-kopia-snapshots.sh <height>`, stop all processes
 that write the source node and indexer data. The script requires a reachable
 Docker daemon and rejects running source services or containers whose mounts
