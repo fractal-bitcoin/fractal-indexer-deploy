@@ -358,9 +358,13 @@ scripts/cleanup.sh --all
 
 - `--stop` stops all services without deleting data.
 - `--data` stops all services and deletes runtime `data/` directories. You must
-  type `data` to confirm.
+  type `data` to confirm. This includes `proof-publisher/data/` and its SQLite
+  state; back up publisher state before cleanup.
 - `--all` stops all services and deletes runtime data, logs, generated configs,
-  and the local Kopia cache. You must type `all` to confirm.
+  and the local Kopia cache. You must type `all` to confirm. This also deletes
+  `proof-publisher/config.json`, which may contain the signing private key and
+  API keys. Securely back up publisher state, configuration, and private keys
+  before cleanup.
 
 ## Validation
 

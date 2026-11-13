@@ -16,7 +16,10 @@ Usage:
 Options:
   --stop    Stop all Docker Compose services managed by this repository.
   --data    Stop services and delete runtime data directories. Requires typing: data
+            Includes proof-publisher/data/ and its SQLite state. Back it up first.
   --all     Stop services and delete runtime data, logs, and generated local configs.
+            Includes publisher SQLite state and proof-publisher/config.json,
+            which may contain the signing private key and API keys. Back them up first.
             Requires typing: all
 EOF
 }
@@ -111,7 +114,7 @@ case "$mode" in
     stop_all
     ;;
   --data)
-    confirm_exact data "runtime data directories will be deleted"
+    confirm_exact data "runtime data directories will be deleted, including proof-publisher/data/ and its SQLite state. Back up publisher state before continuing"
     stop_all
     remove_paths \
       "${REPO_ROOT}/fractald/data" \
@@ -120,7 +123,7 @@ case "$mode" in
     log "Runtime data cleanup completed"
     ;;
   --all)
-    confirm_exact all "runtime data, logs, generated configs, and local Kopia cache will be deleted"
+    confirm_exact all "runtime data, logs, generated configs, and local Kopia cache will be deleted. This includes proof-publisher/data/ (SQLite state) and proof-publisher/config.json (which may contain the signing private key and API keys). Back up publisher state, config, and private keys before continuing"
     stop_all
     remove_paths \
       "${REPO_ROOT}/fractald/data" \
