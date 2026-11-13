@@ -46,6 +46,11 @@ manual installation, use these official documents:
 `scripts/mount-kopia-snapshot.sh` also requires FUSE. The script checks for
 FUSE and prints manual installation instructions when it is missing.
 
+Run each service's `scripts/init.sh` from that service's directory. The script
+checks the working directory before creating directories, changing ownership,
+or running Compose commands, and exits with a reminder to `cd` if it is wrong.
+It does not automatically change the caller-selected working directory.
+
 ## Resource Requirements
 
 - Single-host snapshot deployment on the same disk: disk `800 GB+`, minimum memory `64 GB`
@@ -71,7 +76,7 @@ Deploy `fractald` and `fractal-indexer` from the latest snapshot:
 ```bash
 git clone https://github.com/fractal-bitcoin/fractal-indexer-deploy
 cd fractal-indexer-deploy
-scripts/deploy.sh --snapshot=latest
+./scripts/deploy.sh --snapshot=latest
 ```
 
 The deploy script creates or updates local configs, including Fractald RPC
@@ -88,13 +93,13 @@ After the indexer stack is running, configure the proof publisher manually.
 To redeploy from a clean state, stop services and remove runtime data first:
 
 ```bash
-scripts/cleanup.sh --data
+./scripts/cleanup.sh --data
 ```
 
 To download snapshot data only and skip service initialization/startup:
 
 ```bash
-scripts/deploy.sh --snapshot=latest --download-only
+./scripts/deploy.sh --snapshot=latest --download-only
 ```
 
 #### Deployment Order and Recovery
@@ -292,8 +297,8 @@ required datasets passing the snapshot completeness checks.
 ## List Uploaded Snapshot Heights
 
 ```bash
-scripts/list-kopia-snapshot-heights.sh
-scripts/list-kopia-snapshot-heights.sh --all-schemas
+./scripts/list-kopia-snapshot-heights.sh
+./scripts/list-kopia-snapshot-heights.sh --all-schemas
 ```
 
 Prints unique heights in ascending numeric order, one per line. By default,
@@ -308,7 +313,7 @@ Use `scripts/restore-kopia-snapshot.sh` to restore one Kopia snapshot dataset by
 numeric height, dataset name, and target directory:
 
 ```bash
-scripts/restore-kopia-snapshot.sh \
+./scripts/restore-kopia-snapshot.sh \
   --height=2229982 \
   --dataset=fractald-blocks \
   --target=fractald/data/blocks
@@ -339,7 +344,7 @@ Common datasets:
 You can run the deploy script without `--snapshot`:
 
 ```bash
-scripts/deploy.sh
+./scripts/deploy.sh
 ```
 
 Without snapshots, `fractald` must sync from genesis and `fractal-indexer` must
@@ -362,9 +367,9 @@ running in a non-interactive environment.
 Use `scripts/cleanup.sh` to stop services or remove generated runtime state:
 
 ```bash
-scripts/cleanup.sh --stop
-scripts/cleanup.sh --data
-scripts/cleanup.sh --all
+./scripts/cleanup.sh --stop
+./scripts/cleanup.sh --data
+./scripts/cleanup.sh --all
 ```
 
 - `--stop` stops all services without deleting data.
