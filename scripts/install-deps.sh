@@ -12,7 +12,7 @@ Usage:
   scripts/install-deps.sh
 
 Installs deployment dependencies when they are missing:
-  docker, docker compose plugin, jq, kopia, rsync, lsof
+  docker, docker compose plugin, curl, jq, kopia, rsync, lsof
 
 Supported package managers:
   apt-get, dnf, yum
@@ -88,6 +88,7 @@ missing_items=()
 
 command -v docker >/dev/null 2>&1 || missing_items+=(docker)
 have_docker_compose || missing_items+=(docker-compose-plugin)
+command -v curl >/dev/null 2>&1 || missing_items+=(curl)
 command -v jq >/dev/null 2>&1 || missing_items+=(jq)
 command -v kopia >/dev/null 2>&1 || missing_items+=(kopia)
 command -v rsync >/dev/null 2>&1 || missing_items+=(rsync)
@@ -288,3 +289,4 @@ fi
 require_command jq
 require_command kopia
 require_command rsync
+require_command curl
