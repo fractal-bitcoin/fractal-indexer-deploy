@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/restore-kopia-snapshot.sh --height=<height> --dataset=<dataset> --target=<target-dir> [--no-delete-extra] [--yes]
+  scripts/restore-kopia-snapshot.sh --height=<height> --dataset=<dataset> --target=<target-dir> [--no-delete-extra] [--no-skip-existing] [--yes]
 
 Required arguments:
   --height=<height>       Snapshot height to restore.
@@ -18,7 +18,11 @@ Required arguments:
 
 Options:
   --no-delete-extra        Keep extra files in the target directory.
-  --yes                    Skip confirmation for deleting extra files in a nonempty target.
+  --no-skip-existing       Restore existing files and symlinks instead of skipping them.
+  --yes                    Skip deletion/overwrite confirmation for a nonempty target.
+
+Existing files are skipped by default. Resume only the same snapshot this way;
+use a new directory or --no-skip-existing when switching snapshots.
 
 Targets are resolved with GNU realpath. The filesystem root is rejected,
 even with --yes or --no-delete-extra.
@@ -38,6 +42,7 @@ snapshot_height=""
 dataset=""
 target=""
 delete_extra=1
+skip_existing=1
 assume_yes=0
 original_args=("$@")
 
@@ -54,6 +59,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     --no-delete-extra)
       delete_extra=0
+      ;;
+    --no-skip-existing)
+      skip_existing=0
       ;;
     --yes)
       assume_yes=1
@@ -102,14 +110,22 @@ validate_restore_target() {
 confirm_restore_target() {
   local first_entry answer
 
-  [ "$delete_extra" -eq 1 ] || return 0
+  if [ "$delete_extra" -eq 0 ] && [ "$skip_existing" -eq 1 ]; then
+    return 0
+  fi
   [ -d "$target" ] || return 0
   first_entry="$(find "$target" -mindepth 1 -maxdepth 1 -print -quit)" || die "cannot inspect restore target"
   [ -n "$first_entry" ] || return 0
 
-  warn "Restoring ${dataset} at height ${snapshot_height} to ${target}; files absent from the snapshot will be deleted. Back up this directory before continuing."
+  warn "Restoring ${dataset} at height ${snapshot_height} to ${target}. Back up this directory before continuing."
+  if [ "$delete_extra" -eq 1 ]; then
+    warn "files absent from the snapshot will be deleted."
+  fi
+  if [ "$skip_existing" -eq 0 ]; then
+    warn "Existing files and symlinks may be overwritten because --no-skip-existing was provided."
+  fi
   [ "$assume_yes" -eq 0 ] || return 0
-  [ -t 0 ] || die "nonempty target requires interactive confirmation; use --yes or --no-delete-extra"
+  [ -t 0 ] || die "nonempty target requires interactive confirmation; use --yes to accept the requested changes"
   printf 'Type the full target path "%s" to continue: ' "$target" >&2
   read -r answer || die "confirmation failed; restore cancelled"
   [ "$answer" = "$target" ] || die "confirmation failed; restore cancelled"
@@ -128,7 +144,7 @@ require_command jq
 log "Connecting Kopia repository as read-only"
 kopia_connect_s3 readonly
 
-kopia_restore_snapshot_dataset "$snapshot_height" "$dataset" "$target" "$delete_extra"
+kopia_restore_snapshot_dataset "$snapshot_height" "$dataset" "$target" "$delete_extra" "" "$skip_existing"
 object_id="$KOPIA_RESTORED_OBJECT_ID"
 
 printf '%s\t%s\t%s\t%s\n' "$snapshot_height" "$dataset" "$object_id" "$target"

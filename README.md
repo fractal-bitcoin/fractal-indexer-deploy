@@ -323,11 +323,21 @@ numeric height, dataset name, and target directory:
 
 By default, the restore script deletes files in the target directory that are not
 present in the snapshot. Add `--no-delete-extra` to keep extra files.
+Existing files and symlinks are skipped by default (`--skip-existing`), without
+establishing that their contents match the selected snapshot root. This is
+intended for resuming the same snapshot into an unchanged target. When switching
+heights or snapshot roots, restore into a new empty directory, or explicitly
+pass `--no-skip-existing` to restore over existing entries. `--delete-extra`
+does not refresh skipped entries, and `--no-delete-extra` may retain stale
+files absent from the selected snapshot. Top-level `deploy.sh --force` also
+keeps the default skip behavior; it is not an overwrite option.
+
 For an existing nonempty target (including hidden files), the script displays
 the resolved target path, dataset, and height, and requires typing the full
-target path before proceeding. Non-interactive use must explicitly pass
-`--yes` to accept deletion, or `--no-delete-extra` to keep extra files.
-Empty or new targets do not require deletion confirmation.
+target path before deletion or overwriting. Non-interactive use must explicitly
+pass `--yes` to accept these changes. `--no-delete-extra` skips confirmation
+only when the default skip-existing behavior is retained. Empty or new targets
+do not require confirmation.
 
 The standalone restore script requires GNU `realpath` and resolves the target
 before checking it. It rejects only the filesystem root, including paths that

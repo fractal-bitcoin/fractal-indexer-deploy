@@ -397,8 +397,9 @@ kopia_restore_snapshot_dataset() {
   local target="$3"
   local delete_extra="${4:-0}"
   local object_id="${5:-}"
+  local skip_existing="${6:-1}"
   local tags_display
-  local restore_args=(--skip-existing --write-files-atomically)
+  local restore_args=(--write-files-atomically)
   local tags=(
     "network:fractal"
     "role:snapshot"
@@ -416,6 +417,11 @@ kopia_restore_snapshot_dataset() {
   fi
 
   mkdir -p "$(dirname "$target")"
+  if [ "$skip_existing" -eq 1 ]; then
+    restore_args+=(--skip-existing)
+  else
+    restore_args+=(--no-skip-existing)
+  fi
   if [ "$delete_extra" -eq 1 ]; then
     restore_args+=(--delete-extra)
   fi

@@ -12,7 +12,7 @@ CHECKS = TEXT[TEXT.index('validate_restore_target() {'):TEXT.index('\nrequire_co
 
 
 class RestoreTargetTests(unittest.TestCase):
-    def run_check(self, target, *, content=False, yes=False, delete=True, setup=None, confirmation=None):
+    def run_check(self, target, *, content=False, yes=False, delete=True, setup=None, confirmation=None, skip=True):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory).resolve()
             repo = base / 'repo'
@@ -33,7 +33,7 @@ class RestoreTargetTests(unittest.TestCase):
                      'system': '/proc/fractal', 'link': str(base / 'link')}
             env = dict(os.environ, HOME=str(home), REPO_ROOT=str(repo),
                        TEST_TARGET=paths[target], TEST_PYTHON=sys.executable,
-                       TEST_YES=str(int(yes)), TEST_DELETE=str(int(delete)))
+                       TEST_YES=str(int(yes)), TEST_DELETE=str(int(delete)), TEST_SKIP=str(int(skip)))
             # macOS realpath lacks GNU -m/-e; emulate canonicalization only in
             # this isolated fixture. Production uses GNU realpath on Linux.
             shell = '''set -euo pipefail
@@ -46,6 +46,7 @@ target="$TEST_TARGET"
 snapshot_height=123
 dataset=fractald-blocks
 delete_extra="$TEST_DELETE"
+skip_existing="$TEST_SKIP"
 assume_yes="$TEST_YES"
 '''
             master = slave = None
@@ -112,6 +113,18 @@ assume_yes="$TEST_YES"
         result = self.run_check('data', content=True, delete=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, '')
+
+    def test_overwrite_requires_confirmation_even_without_deletion(self):
+        result = self.run_check('data', content=True, delete=False, skip=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('nonempty target requires interactive confirmation', result.stderr)
+        self.assertIn('may be overwritten', result.stderr)
+
+    def test_yes_allows_overwrite_without_deletion(self):
+        result = self.run_check('data', content=True, delete=False, skip=False, yes=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('may be overwritten', result.stderr)
+        self.assertNotIn('will be deleted', result.stderr)
 
     def test_no_delete_extra_still_rejects_root(self):
         self.assertNotEqual(self.run_check('root', delete=False).returncode, 0)
