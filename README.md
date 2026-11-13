@@ -316,6 +316,17 @@ scripts/restore-kopia-snapshot.sh \
 
 By default, the restore script deletes files in the target directory that are not
 present in the snapshot. Add `--no-delete-extra` to keep extra files.
+For an existing nonempty target (including hidden files), the script displays
+the resolved target path, dataset, and height, and requires typing the full
+target path before proceeding. Non-interactive use must explicitly pass
+`--yes` to accept deletion, or `--no-delete-extra` to keep extra files.
+Empty or new targets do not require deletion confirmation.
+
+The standalone restore script requires GNU `realpath` and resolves the target
+before checking it. It rejects only the filesystem root, including paths that
+resolve to `/`, even with `--yes` or `--no-delete-extra`. Other directory
+locations are allowed. Path checks do not protect against concurrent symlink
+changes by another process.
 
 Common datasets:
 

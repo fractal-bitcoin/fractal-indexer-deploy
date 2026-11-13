@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/restore-kopia-snapshot.sh --height=<height> --dataset=<dataset> --target=<target-dir> [--no-delete-extra]
+  scripts/restore-kopia-snapshot.sh --height=<height> --dataset=<dataset> --target=<target-dir> [--no-delete-extra] [--yes]
 
 Required arguments:
   --height=<height>       Snapshot height to restore.
@@ -18,6 +18,10 @@ Required arguments:
 
 Options:
   --no-delete-extra        Keep extra files in the target directory.
+  --yes                    Skip confirmation for deleting extra files in a nonempty target.
+
+Targets are resolved with GNU realpath. The filesystem root is rejected,
+even with --yes or --no-delete-extra.
 
 Available datasets:
   fractald-blocks         Suggested target: fractald/data/blocks
@@ -34,6 +38,7 @@ snapshot_height=""
 dataset=""
 target=""
 delete_extra=1
+assume_yes=0
 original_args=("$@")
 
 while [ "$#" -gt 0 ]; do
@@ -49,6 +54,9 @@ while [ "$#" -gt 0 ]; do
       ;;
     --no-delete-extra)
       delete_extra=0
+      ;;
+    --yes)
+      assume_yes=1
       ;;
     -h|--help)
       usage
@@ -82,6 +90,35 @@ if [ "${EUID:-$(id -u)}" -ne 0 ]; then
   log "Re-running restore script as root via sudo"
   exec sudo -E bash "$0" "${original_args[@]}"
 fi
+
+validate_restore_target() {
+  target="$(realpath -m -- "$target")" || die "cannot resolve restore target"
+  [ "$target" != / ] || die "unsafe restore target: ${target}"
+  if [ -e "$target" ] && [ ! -d "$target" ]; then
+    die "restore target is not a directory: ${target}"
+  fi
+}
+
+confirm_restore_target() {
+  local first_entry answer
+
+  [ "$delete_extra" -eq 1 ] || return 0
+  [ -d "$target" ] || return 0
+  first_entry="$(find "$target" -mindepth 1 -maxdepth 1 -print -quit)" || die "cannot inspect restore target"
+  [ -n "$first_entry" ] || return 0
+
+  warn "Restoring ${dataset} at height ${snapshot_height} to ${target}; files absent from the snapshot will be deleted. Back up this directory before continuing."
+  [ "$assume_yes" -eq 0 ] || return 0
+  [ -t 0 ] || die "nonempty target requires interactive confirmation; use --yes or --no-delete-extra"
+  printf 'Type the full target path "%s" to continue: ' "$target" >&2
+  read -r answer || die "confirmation failed; restore cancelled"
+  [ "$answer" = "$target" ] || die "confirmation failed; restore cancelled"
+}
+
+require_command realpath
+require_command find
+validate_restore_target
+confirm_restore_target
 
 load_default_readonly_r2_credentials
 
