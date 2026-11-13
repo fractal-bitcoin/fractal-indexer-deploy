@@ -436,6 +436,26 @@ sed_replacement_escape() {
   sed -e 's/[\/&]/\\&/g'
 }
 
+render_template_atomically() (
+  local template="$1"
+  local target="$2"
+  local temporary
+  shift 2
+
+  mkdir -p "$(dirname "$target")" || return
+  temporary="$(mktemp "${target}.tmp.XXXXXX")" || return
+  trap 'rm -f "$temporary"' EXIT
+
+  if [ -e "$target" ]; then
+    cp -p "$target" "$temporary" || return
+  else
+    # Match normal file creation permissions, respecting the caller's umask.
+    chmod =rw "$temporary" || return
+  fi
+  sed "$@" "$template" >"$temporary" || return
+  mv -f "$temporary" "$target" || return
+)
+
 generate_from_template() {
   local template="$1"
   local target="$2"
@@ -451,8 +471,7 @@ generate_from_template() {
     shift 2
   done
 
-  mkdir -p "$(dirname "$target")"
-  sed "${sed_args[@]}" "$template" >"$target"
+  render_template_atomically "$template" "$target" "${sed_args[@]}"
 }
 
 generate_fractald_config() {
@@ -472,8 +491,7 @@ generate_fractald_config() {
     sed_args+=(-e '/^[[:space:]]*prune[[:space:]]*=/d')
   fi
 
-  mkdir -p "$(dirname "$target")"
-  sed "${sed_args[@]}" "$template" >"$target"
+  render_template_atomically "$template" "$target" "${sed_args[@]}"
 }
 
 generate_fractal_indexer_chain_config() {
@@ -481,10 +499,14 @@ generate_fractal_indexer_chain_config() {
   local rpc_password="$2"
   local template="${REPO_ROOT}/fractal-indexer/conf/indexer/chain.yaml.example"
   local target="${REPO_ROOT}/fractal-indexer/conf/indexer/chain.yaml"
+  local rpc_auth_json
 
+  require_command jq
+  # JSON strings are valid YAML quoted scalars. Serialize the complete value
+  # once so credential contents cannot become YAML syntax or placeholders.
+  rpc_auth_json="$(printf '%s:%s' "$rpc_user" "$rpc_password" | jq -cRs .)" || die "failed to serialize RPC credentials"
   generate_from_template "$template" "$target" \
-    "{REPLACE_RPC_USER}" "$rpc_user" \
-    "{REPLACE_RPC_PASSWORD}" "$rpc_password"
+    '"{REPLACE_RPC_USER}:{REPLACE_RPC_PASSWORD}"' "$rpc_auth_json"
 }
 
 proof_publisher_can_start() {
