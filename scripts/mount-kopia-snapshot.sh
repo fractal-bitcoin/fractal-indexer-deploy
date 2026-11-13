@@ -76,7 +76,28 @@ unmount_path() {
 
 # Track only mounts successfully created by this invocation.
 mounted_paths=()
+mount_pids=()
+pending_mount_target=""
+pending_mount_pid=""
 cleanup_started=false
+
+terminate_mount_process() {
+  local pid="$1"
+  local attempt
+
+  if kill -0 "$pid" >/dev/null 2>&1; then
+    kill -TERM "$pid" >/dev/null 2>&1 || true
+    for ((attempt = 0; attempt < 50; attempt++)); do
+      kill -0 "$pid" >/dev/null 2>&1 || break
+      sleep 0.1
+    done
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      warn "Kopia mount process ${pid} did not stop; sending KILL"
+      kill -KILL "$pid" >/dev/null 2>&1 || true
+    fi
+  fi
+  wait "$pid" 2>/dev/null || true
+}
 
 cleanup() {
   local i
@@ -90,11 +111,27 @@ cleanup() {
   trap '' INT TERM
   set +e
 
+  # A mount can become ready after the readiness check times out. Stop its
+  # worker first, then remove any late mount at this invocation's pending path.
+  if [ -n "$pending_mount_pid" ]; then
+    terminate_mount_process "$pending_mount_pid"
+  fi
+  if [ -n "$pending_mount_target" ]; then
+    unmount_path "$pending_mount_target"
+  fi
+
   for ((i = ${#mounted_paths[@]} - 1; i >= 0; i--)); do
     unmount_path "${mounted_paths[$i]}"
   done
+  for ((i = ${#mount_pids[@]} - 1; i >= 0; i--)); do
+    [ "${mount_pids[$i]}" = "$pending_mount_pid" ] && continue
+    terminate_mount_process "${mount_pids[$i]}"
+  done
 
   mounted_paths=()
+  mount_pids=()
+  pending_mount_target=""
+  pending_mount_pid=""
 }
 
 wait_for_mount() {
@@ -140,14 +177,19 @@ mount_dataset() {
   fi
 
   log "Mounting ${dataset} (${object_id}) to ${target}"
+  pending_mount_target="$target"
   kopia mount "$object_id" "$target" --fuse-allow-other &
   mount_pid="$!"
+  pending_mount_pid="$mount_pid"
+  mount_pids+=("$mount_pid")
 
   if ! wait_for_mount "$target" "$mount_pid"; then
     die "failed to mount ${dataset} to ${target}"
   fi
 
   mounted_paths+=("$target")
+  pending_mount_target=""
+  pending_mount_pid=""
 }
 
 load_default_readonly_r2_credentials
