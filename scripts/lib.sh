@@ -481,23 +481,6 @@ generate_fractal_indexer_chain_config() {
     "{REPLACE_RPC_PASSWORD}" "$rpc_password"
 }
 
-generate_proof_publisher_config() {
-  local rpc_user="$1"
-  local rpc_password="$2"
-  local template="${REPO_ROOT}/proof-publisher/config.example.json"
-  local target="${REPO_ROOT}/proof-publisher/config.json"
-
-  generate_from_template "$template" "$target" \
-    "REPLACE_RPC_USER" "$rpc_user" \
-    "REPLACE_RPC_PASSWORD" "$rpc_password" \
-    "REPLACE_PRIVATE_KEY_WIF" "${PROOF_PRIVATE_KEY_WIF:-REPLACE_PRIVATE_KEY_WIF}" \
-    "REPLACE_CHANGE_ADDRESS" "${PROOF_CHANGE_ADDRESS:-REPLACE_CHANGE_ADDRESS}" \
-    "REPLACE_REWARD_ADDRESS" "${PROOF_REWARD_ADDRESS:-REPLACE_REWARD_ADDRESS}" \
-    "REPLACE_INDEXER_NAME" "${PROOF_INDEXER_NAME:-REPLACE_INDEXER_NAME}" \
-    "REPLACE_EXISTING_INDEXER_ID_OR_EMPTY" "${PROOF_INDEXER_ID:-}" \
-    "REPLACE_UNISAT_OPEN_API_KEY" "${PROOF_UNISAT_OPEN_API_KEY:-REPLACE_UNISAT_OPEN_API_KEY}"
-}
-
 proof_publisher_can_start() {
   [ -n "${PROOF_PRIVATE_KEY_WIF:-}" ] \
     && [ -n "${PROOF_CHANGE_ADDRESS:-}" ] \
